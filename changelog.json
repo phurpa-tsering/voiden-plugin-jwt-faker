@@ -1,0 +1,18 @@
+[
+  {
+    "version": "v1.0.0",
+    "date": "11/08/2026",
+    "title": "Initial Release",
+    "description": "JWT Faker plugin for generating and decoding test JWTs in Voiden.",
+    "changes": {
+      "Added": [
+        "HMAC SHA algorithms: HS256, HS384, HS512, and unsigned tokens (none)",
+        "JSON Header and Payload editors with live syntax validation",
+        "Quick claim action buttons for exp, iat, and nbf timestamps",
+        "Live token decoder and split inspector",
+        "Custom claim template presets and manager",
+        "One-click copy token to clipboard"
+      ]
+    }
+  }
+]

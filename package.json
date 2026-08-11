@@ -1,0 +1,27 @@
+{
+  "name": "@exudev/voiden-plugin-jwt-faker",
+  "version": "1.0.0",
+  "type": "module",
+  "private": false,
+  "description": "Generate, customize, sign, decode, and copy JSON Web Tokens (JWTs) directly within Voiden for API authentication testing",
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "release": "node build.mjs && node generate-manifest.mjs"
+  },
+  "peerDependencies": {
+    "@voiden/sdk": ">=1.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@voiden/sdk": "^1.0.10",
+    "jsdom": "^29.1.1",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
