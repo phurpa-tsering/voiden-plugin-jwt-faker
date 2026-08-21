@@ -2,7 +2,7 @@
   "id": "jwt-faker",
   "name": "JWT Faker",
   "description": "Generate, customize, sign, decode, and copy JSON Web Tokens (JWTs) directly within Voiden for testing authenticated APIs with support for HS256, HS384, HS512, and unsigned tokens.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "voidenVersion": ">=2.0.0",
   "author": "Exudev",
   "enabled": true,

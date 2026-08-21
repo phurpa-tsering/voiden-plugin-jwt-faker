@@ -1,5 +1,20 @@
 [
   {
+    "version": "v1.0.1",
+    "date": "20/08/2026",
+    "title": "Official Tooling & Status Bar Fix",
+    "description": "Migrated project build and packaging pipeline to official @voiden/create-plugin scaffolding and fixed status bar item position.",
+    "changes": {
+      "Fixed": [
+        "Added position: 'left' and label properties to registerStatusBarItem so the status bar button renders in Voiden UI"
+      ],
+      "Changed": [
+        "Scaffolded with official @voiden/create-plugin tooling (build.mjs, build-main.mjs, zip.mjs, generate-manifest.mjs)",
+        "Added npm run zip and npm run release commands for installer/registry zip asset generation"
+      ]
+    }
+  },
+  {
     "version": "v1.0.0",
     "date": "11/08/2026",
     "title": "Initial Release",

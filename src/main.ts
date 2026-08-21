@@ -54,7 +54,8 @@ const jwtFakerPlugin = (context: PluginContext) => {
       if (typeof context.registerStatusBarItem === 'function') {
         context.registerStatusBarItem({
           id: 'jwt-faker-status-item',
-          text: 'JWT Faker',
+          position: 'left',
+          label: 'JWT Faker',
           icon: 'Sparkles',
           tooltip: 'Generate and decode JWT tokens for testing',
           onClick: () => {
