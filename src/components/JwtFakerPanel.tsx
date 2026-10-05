@@ -7,8 +7,10 @@ import {
 import type { JwtAlgorithm, JwtTemplate } from '../utils/types';
 import { Copy, Check, Sparkles, X } from 'lucide-react';
 
+type ShowToast = (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+
 interface JwtFakerPanelProps {
-  showToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  showToast?: ShowToast;
 }
 
 const DEFAULT_HEADER = JSON.stringify({ alg: 'HS256', typ: 'JWT' }, null, 2);
@@ -39,13 +41,34 @@ const primaryButtonClass =
   'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-button-primary hover:bg-button-primary-hover text-bg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 const errorClass = 'rounded border border-border bg-panel px-3 py-2 text-xs text-status-error';
 
+interface CopyButtonProps {
+  text: string;
+  label: string;
+  copied: boolean;
+  onCopy: () => void;
+  primary?: boolean;
+}
+
+/** Copy button with a short "Copied" confirmation state. */
+const CopyButton = ({ text, label, copied, onCopy, primary }: CopyButtonProps) => (
+  <button
+    onClick={onCopy}
+    disabled={!text}
+    title={copied ? 'Copied to clipboard' : `Copy ${label.toLowerCase()} to clipboard`}
+    className={primary ? primaryButtonClass : secondaryButtonClass}
+  >
+    {copied ? <Check size={14} /> : <Copy size={14} />}
+    {copied ? 'Copied' : `Copy ${label}`}
+  </button>
+);
+
 export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
   const [algorithm, setAlgorithm] = useState<JwtAlgorithm>('HS256');
   const [secret, setSecret] = useState('your-256-bit-secret');
   const [headerJson, setHeaderJson] = useState(DEFAULT_HEADER);
   const [payloadJson, setPayloadJson] = useState(DEFAULT_PAYLOAD);
   const [generatedJwt, setGeneratedJwt] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'editor' | 'decoder' | 'templates'>('editor');
   const [inputTokenToDecode, setInputTokenToDecode] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
@@ -60,6 +83,8 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
     }
   });
   const [templateName, setTemplateName] = useState('');
+  // The template currently loaded into the generator, so edits can update it.
+  const [loadedTemplateId, setLoadedTemplateId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -110,12 +135,16 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
     };
   }, [algorithm, secret, headerJson, payloadJson]);
 
-  const handleCopy = () => {
-    if (!generatedJwt) return;
-    navigator.clipboard.writeText(generatedJwt);
-    setCopied(true);
-    showToast?.('JWT copied to clipboard!', 'success');
-    setTimeout(() => setCopied(false), 2000);
+  const copyToClipboard = async (key: string, text: string, label: string) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      showToast?.(`${label} copied to clipboard`, 'success');
+      setTimeout(() => setCopiedKey((current) => (current === key ? null : current)), 2000);
+    } catch {
+      showToast?.(`Could not copy ${label.toLowerCase()} to clipboard`, 'error');
+    }
   };
 
   const handleAddClaim = (claimName: string, value: any) => {
@@ -128,6 +157,15 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
     }
   };
 
+  const loadedTemplate = templates.find((t) => t.id === loadedTemplateId) ?? null;
+  const hasTemplateChanges =
+    !!loadedTemplate &&
+    (loadedTemplate.name !== templateName.trim() ||
+      loadedTemplate.algorithm !== algorithm ||
+      loadedTemplate.secret !== secret ||
+      loadedTemplate.header !== headerJson ||
+      loadedTemplate.payload !== payloadJson);
+
   const handleSaveTemplate = () => {
     if (!templateName.trim()) return;
     const newTemplate: JwtTemplate = {
@@ -139,8 +177,30 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
       payload: payloadJson,
     };
     setTemplates([...templates, newTemplate]);
-    setTemplateName('');
+    // Keep the new template loaded so further edits update it.
+    setLoadedTemplateId(newTemplate.id);
+    setTemplateName(newTemplate.name);
     showToast?.(`Saved template "${newTemplate.name}"`, 'success');
+  };
+
+  const handleUpdateTemplate = () => {
+    if (!loadedTemplate || !templateName.trim()) return;
+    const updated: JwtTemplate = {
+      ...loadedTemplate,
+      name: templateName.trim(),
+      algorithm,
+      secret,
+      header: headerJson,
+      payload: payloadJson,
+    };
+    setTemplates(templates.map((t) => (t.id === updated.id ? updated : t)));
+    setTemplateName(updated.name);
+    showToast?.(`Updated template "${updated.name}"`, 'success');
+  };
+
+  const handleDetachTemplate = () => {
+    setLoadedTemplateId(null);
+    setTemplateName('');
   };
 
   const handleLoadTemplate = (tpl: JwtTemplate) => {
@@ -148,15 +208,21 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
     setSecret(tpl.secret);
     setHeaderJson(tpl.header);
     setPayloadJson(tpl.payload);
+    setLoadedTemplateId(tpl.id);
+    setTemplateName(tpl.name);
     setActiveTab('editor');
     showToast?.(`Loaded template "${tpl.name}"`, 'info');
   };
 
   const handleDeleteTemplate = (id: string) => {
     setTemplates(templates.filter((t) => t.id !== id));
+    if (id === loadedTemplateId) handleDetachTemplate();
   };
 
-  const decoded = decodeJwt(activeTab === 'decoder' ? inputTokenToDecode || generatedJwt : generatedJwt);
+  const tokenToDecode = inputTokenToDecode.trim();
+  const decoded = tokenToDecode ? decodeJwt(tokenToDecode) : null;
+  const decodedHeaderJson = decoded?.isValid ? JSON.stringify(decoded.header, null, 2) : '';
+  const decodedPayloadJson = decoded?.isValid ? JSON.stringify(decoded.payload, null, 2) : '';
 
   const tabButtonClass = (tab: typeof activeTab) =>
     `px-3 py-1 transition-colors ${
@@ -177,13 +243,7 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
           <button className={tabButtonClass('editor')} onClick={() => setActiveTab('editor')}>
             Generator
           </button>
-          <button
-            className={tabButtonClass('decoder')}
-            onClick={() => {
-              setActiveTab('decoder');
-              if (!inputTokenToDecode) setInputTokenToDecode(generatedJwt);
-            }}
-          >
+          <button className={tabButtonClass('decoder')} onClick={() => setActiveTab('decoder')}>
             Decoder
           </button>
           <button className={tabButtonClass('templates')} onClick={() => setActiveTab('templates')}>
@@ -275,31 +335,75 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-semibold text-text">Generated Encoded JWT</label>
-                  <button onClick={handleCopy} disabled={!generatedJwt} className={primaryButtonClass}>
-                    {copied ? <Check size={14} /> : <Copy size={14} />}
-                    {copied ? 'Copied!' : 'Copy JWT'}
-                  </button>
+                  <CopyButton
+                    text={generatedJwt}
+                    label="JWT"
+                    primary
+                    copied={copiedKey === 'jwt'}
+                    onCopy={() => copyToClipboard('jwt', generatedJwt, 'JWT')}
+                  />
                 </div>
                 <textarea
                   readOnly
                   rows={3}
                   value={generatedJwt}
-                  className={`${codeBaseClass} text-accent select-all`}
+                  onFocus={(e) => e.target.select()}
+                  className={`${codeBaseClass} text-accent`}
                 />
               </div>
 
-              {/* Save Template Bar */}
-              <div className="flex items-center gap-2 pt-3 border-t border-border">
-                <input
-                  type="text"
-                  placeholder="Template name (e.g. Admin Token)"
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                  className={inputClass}
-                />
-                <button onClick={handleSaveTemplate} disabled={!templateName.trim()} className={`${secondaryButtonClass} whitespace-nowrap`}>
-                  Save as Template
-                </button>
+              {/* Save / Update Template Bar */}
+              <div className="pt-3 border-t border-border space-y-2">
+                {loadedTemplate && (
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-comment">
+                      Editing template <span className="font-semibold text-text">{loadedTemplate.name}</span>
+                      {hasTemplateChanges && <span className="text-accent"> · Unsaved changes</span>}
+                    </span>
+                    <button
+                      onClick={handleDetachTemplate}
+                      className="text-comment hover:text-text transition-colors"
+                      title="Stop editing this template"
+                    >
+                      Stop editing
+                    </button>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Template name (e.g. Admin Token)"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    className={inputClass}
+                  />
+                  {loadedTemplate ? (
+                    <>
+                      <button
+                        onClick={handleUpdateTemplate}
+                        disabled={!hasTemplateChanges || !templateName.trim()}
+                        className={`${primaryButtonClass} whitespace-nowrap`}
+                      >
+                        Update Template
+                      </button>
+                      <button
+                        onClick={handleSaveTemplate}
+                        disabled={!templateName.trim()}
+                        className={`${secondaryButtonClass} whitespace-nowrap`}
+                      >
+                        Save as New
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={handleSaveTemplate}
+                      disabled={!templateName.trim()}
+                      className={`${secondaryButtonClass} whitespace-nowrap`}
+                    >
+                      Save as Template
+                    </button>
+                  )}
+                </div>
               </div>
             </>
           )}
@@ -307,29 +411,63 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
           {activeTab === 'decoder' && (
             <div className="space-y-4">
               <div>
-                <label className={labelClass}>JWT Token to Decode</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-comment">JWT Token to Decode</label>
+                  <div className="flex items-center gap-2">
+                    {generatedJwt && (
+                      <button onClick={() => setInputTokenToDecode(generatedJwt)} className={secondaryButtonClass}>
+                        Use Generated JWT
+                      </button>
+                    )}
+                    {inputTokenToDecode && (
+                      <button onClick={() => setInputTokenToDecode('')} className={secondaryButtonClass}>
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <textarea
                   rows={3}
                   value={inputTokenToDecode}
                   onChange={(e) => setInputTokenToDecode(e.target.value)}
-                  placeholder="Paste JWT token here..."
+                  placeholder="Paste a JWT here to decode its header and payload..."
                   className={`${codeClass} placeholder:text-comment`}
                 />
               </div>
 
-              {decoded.isValid ? (
+              {!decoded ? (
+                <div className="text-xs text-comment text-center py-6">
+                  Paste a JWT above to see its decoded header and payload.
+                </div>
+              ) : decoded.isValid ? (
                 <div className="flex gap-4">
                   <div className="flex-1 min-w-0">
-                    <span className="block text-xs font-semibold text-comment mb-1">Decoded Header</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-comment">Decoded Header</span>
+                      <CopyButton
+                        text={decodedHeaderJson}
+                        label="Header"
+                        copied={copiedKey === 'header'}
+                        onCopy={() => copyToClipboard('header', decodedHeaderJson, 'Header')}
+                      />
+                    </div>
                     <pre className="font-mono text-xs bg-panel border border-border rounded p-2 overflow-x-auto text-text">
-                      {JSON.stringify(decoded.header, null, 2)}
+                      {decodedHeaderJson}
                     </pre>
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <span className="block text-xs font-semibold text-comment mb-1">Decoded Payload</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-comment">Decoded Payload</span>
+                      <CopyButton
+                        text={decodedPayloadJson}
+                        label="Payload"
+                        copied={copiedKey === 'payload'}
+                        onCopy={() => copyToClipboard('payload', decodedPayloadJson, 'Payload')}
+                      />
+                    </div>
                     <pre className="font-mono text-xs bg-panel border border-border rounded p-2 overflow-x-auto text-text">
-                      {JSON.stringify(decoded.payload, null, 2)}
+                      {decodedPayloadJson}
                     </pre>
                   </div>
                 </div>
@@ -352,7 +490,10 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
                     className="flex items-center justify-between p-2.5 border border-border rounded bg-panel hover:bg-active transition-colors"
                   >
                     <div>
-                      <div className="text-xs font-semibold text-text">{tpl.name}</div>
+                      <div className="text-xs font-semibold text-text">
+                        {tpl.name}
+                        {tpl.id === loadedTemplateId && <span className="font-normal text-accent"> · Loaded</span>}
+                      </div>
                       <div className="text-[11px] text-comment">
                         Alg: {tpl.algorithm} | Key: {tpl.secret || '(none)'}
                       </div>
