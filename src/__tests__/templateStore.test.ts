@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createTemplateStore, LEGACY_STORAGE_KEY, TEMPLATES_FILE } from '../utils/templateStore';
+import { createTemplateStore, GITIGNORE_FILE, LEGACY_STORAGE_KEY, TEMPLATES_FILE } from '../utils/templateStore';
 import type { JwtTemplate } from '../utils/types';
 
 const template = (id: string, name: string): JwtTemplate => ({
@@ -99,6 +99,31 @@ describe('templateStore', () => {
 
     expect(createCalls).toBe(1);
     expect(JSON.parse(fs.files[TEMPLATES_FILE]).templates.map((t: JwtTemplate) => t.name)).toEqual(['B']);
+  });
+
+  it('adds the templates file to .voiden/.gitignore', async () => {
+    const fs = createFakeFs();
+    await createTemplateStore(fs).save([template('1', 'Admin')]);
+
+    expect(fs.files[GITIGNORE_FILE].split('\n')).toContain('jwt-templates.json');
+  });
+
+  it('keeps existing .voiden/.gitignore entries and does not duplicate its own', async () => {
+    const fs = createFakeFs({ [GITIGNORE_FILE]: 'secrets.yaml' });
+    const store = createTemplateStore(fs);
+    await store.save([template('1', 'Admin')]);
+    await store.save([template('2', 'User')]);
+
+    const lines = fs.files[GITIGNORE_FILE].split('\n');
+    expect(lines[0]).toBe('secrets.yaml');
+    expect(lines.filter((line) => line === 'jwt-templates.json')).toHaveLength(1);
+  });
+
+  it('adds the .gitignore entry when loading an existing templates file', async () => {
+    const fs = createFakeFs({ [TEMPLATES_FILE]: JSON.stringify({ version: 1, templates: [template('1', 'Admin')] }) });
+    await createTemplateStore(fs).load();
+
+    expect(fs.files[GITIGNORE_FILE].split('\n')).toContain('jwt-templates.json');
   });
 
   it('loads templates saved earlier', async () => {

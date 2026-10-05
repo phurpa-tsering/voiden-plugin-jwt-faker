@@ -2,11 +2,15 @@ import type { PluginFS } from '@voiden/sdk/ui';
 import type { JwtTemplate } from './types';
 
 /**
- * Templates are saved per project. Voiden's .gitignore ignores `.voiden/*`,
- * so this file stays local and signing secrets are never committed.
+ * Templates are saved per project and contain signing secrets, so the store
+ * also keeps them out of git with its own `.voiden/.gitignore` entry rather
+ * than relying on the project's root .gitignore.
  */
 export const TEMPLATES_DIR = '.voiden';
-export const TEMPLATES_FILE = `${TEMPLATES_DIR}/jwt-templates.json`;
+export const TEMPLATES_FILE_NAME = 'jwt-templates.json';
+export const TEMPLATES_FILE = `${TEMPLATES_DIR}/${TEMPLATES_FILE_NAME}`;
+export const GITIGNORE_FILE = `${TEMPLATES_DIR}/.gitignore`;
+const GITIGNORE_ENTRY = `# Added by the JWT Faker plugin: templates contain signing secrets.\n${TEMPLATES_FILE_NAME}\n`;
 
 /** Where versions before 1.1.0 kept templates (shared by every project). */
 export const LEGACY_STORAGE_KEY = '__voiden_jwt_templates__';
@@ -54,10 +58,24 @@ export const createTemplateStore = (fs: ProjectFs): TemplateStore => {
     }
   };
 
+  // Add the templates file to .voiden/.gitignore, keeping any existing entries.
+  const ensureGitignored = async () => {
+    const existing = (await fs.read(GITIGNORE_FILE)) ?? '';
+    const lines = existing.split(/\r?\n/).map((line) => line.trim());
+    if (lines.includes(TEMPLATES_FILE_NAME) || lines.includes(`/${TEMPLATES_FILE_NAME}`)) return;
+    const separator = existing && !existing.endsWith('\n') ? '\n' : '';
+    await fs.write(GITIGNORE_FILE, `${existing}${separator}${GITIGNORE_ENTRY}`);
+  };
+
   // Run saves one at a time, so two quick saves can't both try to create .voiden.
   let pending: Promise<void> = Promise.resolve();
   const save = (templates: JwtTemplate[]) => {
-    const next = pending.catch(() => {}).then(() => writeTemplates(templates));
+    const next = pending
+      .catch(() => {})
+      .then(async () => {
+        await writeTemplates(templates);
+        await ensureGitignored();
+      });
     pending = next;
     return next;
   };
@@ -70,6 +88,8 @@ export const createTemplateStore = (fs: ProjectFs): TemplateStore => {
       if (!Array.isArray(parsed?.templates)) {
         throw new Error(`${TEMPLATES_FILE} has no "templates" list`);
       }
+      // Also covers files saved before the .gitignore entry existed.
+      await ensureGitignored().catch(() => {});
       return parsed.templates as JwtTemplate[];
     }
 

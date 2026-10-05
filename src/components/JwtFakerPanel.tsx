@@ -5,7 +5,7 @@ import {
   getClaimTimestamp,
 } from '../utils/jwtUtils';
 import type { JwtAlgorithm, JwtTemplate } from '../utils/types';
-import { TEMPLATES_FILE, type TemplateStore } from '../utils/templateStore';
+import { GITIGNORE_FILE, TEMPLATES_FILE, type TemplateStore } from '../utils/templateStore';
 import { Copy, Check, Sparkles, X } from 'lucide-react';
 
 type ShowToast = (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
@@ -498,8 +498,8 @@ export const JwtFakerPanel = ({ templateStore, showToast }: JwtFakerPanelProps) 
           {activeTab === 'templates' && (
             <div className="space-y-2">
               <div className="text-[11px] text-comment">
-                Saved in <span className="font-mono">{TEMPLATES_FILE}</span> for this project. Voiden keeps{' '}
-                <span className="font-mono">.voiden/</span> out of git, so secrets stay on this machine.
+                Saved in <span className="font-mono">{TEMPLATES_FILE}</span> for this project and listed in{' '}
+                <span className="font-mono">{GITIGNORE_FILE}</span>, so secrets aren't committed to git.
               </div>
               {templatesStatus === 'loading' ? (
                 <div className="text-xs text-comment text-center py-6">Loading templates…</div>
