@@ -7,48 +7,32 @@
 
 import type { PluginContext } from '@voiden/sdk/ui';
 import React from 'react';
-import { JwtFakerModal } from './components/JwtFakerModal';
+import { JwtFakerPanel } from './components/JwtFakerPanel';
+
+const TAB_ID = 'jwt-faker';
+const TAB_TITLE = 'JWT Faker';
 
 const jwtFakerPlugin = (context: PluginContext) => {
   const showToast = (context as any)?.ui?.showToast as
     | ((message: string, type?: 'info' | 'success' | 'warning' | 'error') => void)
     | undefined;
 
-  let modalRoot: HTMLElement | null = null;
-  let isModalOpen = false;
+  // Custom tabs render their component with no props, so bind showToast here.
+  const JwtFakerTab = () => React.createElement(JwtFakerPanel, { showToast });
 
-  const renderModal = () => {
-    if (!modalRoot) {
-      modalRoot = document.createElement('div');
-      modalRoot.id = 'jwt-faker-modal-root';
-      document.body.appendChild(modalRoot);
-    }
-
-    const { createRoot } = (window as any).__voiden_shims__?.['react-dom/client'] || {};
-    if (createRoot) {
-      if (!(modalRoot as any)._reactRoot) {
-        (modalRoot as any)._reactRoot = createRoot(modalRoot);
-      }
-      (modalRoot as any)._reactRoot.render(
-        React.createElement(JwtFakerModal, {
-          isOpen: isModalOpen,
-          onClose: () => {
-            isModalOpen = false;
-            renderModal();
-          },
-          showToast,
-        })
-      );
-    }
+  // Opens the JWT Faker tab in the main panel, or focuses it if already open.
+  const openTab = () => {
+    context.addTab('main', { id: TAB_ID, title: TAB_TITLE, icon: null, props: {} });
   };
 
   return {
     onload: () => {
-      // Expose global helper to open modal
-      (window as any).__voidenOpenJwtFaker__ = () => {
-        isModalOpen = true;
-        renderModal();
-      };
+      // Register the tab component up front, so a JWT Faker tab restored from
+      // the previous session renders without the button being clicked first.
+      context.registerPanel('main', { id: TAB_ID, title: TAB_TITLE, component: JwtFakerTab });
+
+      // Expose global helper to open the tab
+      (window as any).__voidenOpenJwtFaker__ = openTab;
 
       // Register status bar item
       if (typeof context.registerStatusBarItem === 'function') {
@@ -58,23 +42,13 @@ const jwtFakerPlugin = (context: PluginContext) => {
           label: 'JWT Faker',
           icon: 'Sparkles',
           tooltip: 'Generate and decode JWT tokens for testing',
-          onClick: () => {
-            isModalOpen = true;
-            renderModal();
-          },
+          onClick: openTab,
         });
       }
     },
 
     onunload: () => {
       delete (window as any).__voidenOpenJwtFaker__;
-      if (modalRoot) {
-        if ((modalRoot as any)._reactRoot) {
-          (modalRoot as any)._reactRoot.unmount();
-        }
-        modalRoot.remove();
-        modalRoot = null;
-      }
     },
   };
 };

@@ -5,11 +5,9 @@ import {
   getClaimTimestamp,
 } from '../utils/jwtUtils';
 import type { JwtAlgorithm, JwtTemplate } from '../utils/types';
-import { Copy, Check, Sparkles, RefreshCw, X } from 'lucide-react';
+import { Copy, Check, Sparkles, X } from 'lucide-react';
 
-interface JwtFakerModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+interface JwtFakerPanelProps {
   showToast?: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
 
@@ -27,7 +25,21 @@ const DEFAULT_PAYLOAD = JSON.stringify(
   2
 );
 
-export const JwtFakerModal = ({ isOpen, onClose, showToast }: JwtFakerModalProps) => {
+// Voiden only ships CSS for Tailwind classes its own UI uses, so every class
+// below is an existing Voiden theme class — they also follow the active theme.
+const labelClass = 'block text-xs font-medium text-comment mb-1';
+const inputClass =
+  'w-full bg-panel border border-border rounded px-3 py-1.5 text-xs text-text placeholder:text-comment focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50 disabled:cursor-not-allowed';
+const codeBaseClass =
+  'w-full font-mono text-xs bg-panel border border-border rounded p-2 focus:outline-none focus:ring-1 focus:ring-accent';
+const codeClass = `${codeBaseClass} text-text`;
+const secondaryButtonClass =
+  'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border bg-panel hover:bg-active text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+const primaryButtonClass =
+  'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-button-primary hover:bg-button-primary-hover text-bg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+const errorClass = 'rounded border border-border bg-panel px-3 py-2 text-xs text-status-error';
+
+export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
   const [algorithm, setAlgorithm] = useState<JwtAlgorithm>('HS256');
   const [secret, setSecret] = useState('your-256-bit-secret');
   const [headerJson, setHeaderJson] = useState(DEFAULT_HEADER);
@@ -98,8 +110,6 @@ export const JwtFakerModal = ({ isOpen, onClose, showToast }: JwtFakerModalProps
     };
   }, [algorithm, secret, headerJson, payloadJson]);
 
-  if (!isOpen) return null;
-
   const handleCopy = () => {
     if (!generatedJwt) return;
     navigator.clipboard.writeText(generatedJwt);
@@ -148,66 +158,53 @@ export const JwtFakerModal = ({ isOpen, onClose, showToast }: JwtFakerModalProps
 
   const decoded = decodeJwt(activeTab === 'decoder' ? inputTokenToDecode || generatedJwt : generatedJwt);
 
+  const tabButtonClass = (tab: typeof activeTab) =>
+    `px-3 py-1 transition-colors ${
+      activeTab === tab ? 'bg-active text-text font-medium' : 'text-comment hover:text-text hover:bg-hover'
+    }`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-panel border border-border rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col text-foreground overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-yellow-500" />
-            <h2 className="text-base font-semibold">JWT Faker & Generator</h2>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Tabs */}
-            <div className="flex bg-muted/40 rounded p-0.5 text-xs">
-              <button
-                className={`px-3 py-1 rounded transition-colors ${
-                  activeTab === 'editor' ? 'bg-primary text-primary-foreground font-medium' : 'text-muted hover:text-foreground'
-                }`}
-                onClick={() => setActiveTab('editor')}
-              >
-                Generator
-              </button>
-              <button
-                className={`px-3 py-1 rounded transition-colors ${
-                  activeTab === 'decoder' ? 'bg-primary text-primary-foreground font-medium' : 'text-muted hover:text-foreground'
-                }`}
-                onClick={() => {
-                  setActiveTab('decoder');
-                  if (!inputTokenToDecode) setInputTokenToDecode(generatedJwt);
-                }}
-              >
-                Decoder
-              </button>
-              <button
-                className={`px-3 py-1 rounded transition-colors ${
-                  activeTab === 'templates' ? 'bg-primary text-primary-foreground font-medium' : 'text-muted hover:text-foreground'
-                }`}
-                onClick={() => setActiveTab('templates')}
-              >
-                Templates ({templates.length})
-              </button>
-            </div>
-
-            <button onClick={onClose} className="p-1 text-muted hover:text-foreground rounded">
-              <X size={18} />
-            </button>
-          </div>
+    <div className="h-full flex flex-col bg-editor text-text overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 px-4 py-2 border-b border-border bg-panel">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-accent" />
+          <h2 className="text-sm font-semibold">JWT Faker & Generator</h2>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Tabs */}
+        <div className="flex border border-border rounded-md overflow-hidden text-xs">
+          <button className={tabButtonClass('editor')} onClick={() => setActiveTab('editor')}>
+            Generator
+          </button>
+          <button
+            className={tabButtonClass('decoder')}
+            onClick={() => {
+              setActiveTab('decoder');
+              if (!inputTokenToDecode) setInputTokenToDecode(generatedJwt);
+            }}
+          >
+            Decoder
+          </button>
+          <button className={tabButtonClass('templates')} onClick={() => setActiveTab('templates')}>
+            Templates ({templates.length})
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto p-4 space-y-4">
           {activeTab === 'editor' && (
             <>
               {/* Algorithm & Secret */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-muted mb-1">Algorithm</label>
+              <div className="flex gap-4">
+                <div className="flex-1 min-w-0">
+                  <label className={labelClass}>Algorithm</label>
                   <select
                     value={algorithm}
                     onChange={(e) => setAlgorithm(e.target.value as JwtAlgorithm)}
-                    className="w-full bg-input border border-border rounded px-2.5 py-1.5 text-sm focus:ring-1 focus:ring-primary"
+                    className={inputClass}
                   >
                     <option value="HS256">HS256 (HMAC SHA-256)</option>
                     <option value="HS384">HS384 (HMAC SHA-384)</option>
@@ -216,8 +213,8 @@ export const JwtFakerModal = ({ isOpen, onClose, showToast }: JwtFakerModalProps
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-muted mb-1">
+                <div className="flex-1 min-w-0">
+                  <label className={labelClass}>
                     Secret Key {algorithm === 'none' && '(Not required for unsigned)'}
                   </label>
                   <input
@@ -226,83 +223,59 @@ export const JwtFakerModal = ({ isOpen, onClose, showToast }: JwtFakerModalProps
                     onChange={(e) => setSecret(e.target.value)}
                     disabled={algorithm === 'none'}
                     placeholder="Enter signing secret"
-                    className="w-full bg-input border border-border rounded px-2.5 py-1.5 text-sm disabled:opacity-50 focus:ring-1 focus:ring-primary"
+                    className={inputClass}
                   />
                 </div>
               </div>
 
               {/* Payload Claim Quick Buttons */}
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-muted font-medium">Quick Claims:</span>
-                <button
-                  onClick={() => handleAddClaim('exp', getClaimTimestamp(3600))}
-                  className="px-2 py-1 bg-muted/40 hover:bg-muted/70 rounded text-foreground transition-colors"
-                >
+                <span className="text-comment font-medium">Quick Claims:</span>
+                <button onClick={() => handleAddClaim('exp', getClaimTimestamp(3600))} className={secondaryButtonClass}>
                   +1h Exp
                 </button>
-                <button
-                  onClick={() => handleAddClaim('exp', getClaimTimestamp(86400))}
-                  className="px-2 py-1 bg-muted/40 hover:bg-muted/70 rounded text-foreground transition-colors"
-                >
+                <button onClick={() => handleAddClaim('exp', getClaimTimestamp(86400))} className={secondaryButtonClass}>
                   +1d Exp
                 </button>
-                <button
-                  onClick={() => handleAddClaim('iat', getClaimTimestamp(0))}
-                  className="px-2 py-1 bg-muted/40 hover:bg-muted/70 rounded text-foreground transition-colors"
-                >
+                <button onClick={() => handleAddClaim('iat', getClaimTimestamp(0))} className={secondaryButtonClass}>
                   Set iat Now
                 </button>
-                <button
-                  onClick={() => handleAddClaim('nbf', getClaimTimestamp(0))}
-                  className="px-2 py-1 bg-muted/40 hover:bg-muted/70 rounded text-foreground transition-colors"
-                >
+                <button onClick={() => handleAddClaim('nbf', getClaimTimestamp(0))} className={secondaryButtonClass}>
                   Set nbf Now
                 </button>
               </div>
 
               {/* JSON Editors */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-medium text-muted">Header (JSON)</label>
-                  </div>
+              <div className="flex gap-4">
+                <div className="flex-1 min-w-0">
+                  <label className={labelClass}>Header (JSON)</label>
                   <textarea
                     rows={6}
                     value={headerJson}
                     onChange={(e) => setHeaderJson(e.target.value)}
-                    className="w-full font-mono text-xs bg-input border border-border rounded p-2 focus:ring-1 focus:ring-primary"
+                    className={codeClass}
                   />
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-medium text-muted">Payload (JSON)</label>
-                  </div>
+                <div className="flex-1 min-w-0">
+                  <label className={labelClass}>Payload (JSON)</label>
                   <textarea
                     rows={6}
                     value={payloadJson}
                     onChange={(e) => setPayloadJson(e.target.value)}
-                    className="w-full font-mono text-xs bg-input border border-border rounded p-2 focus:ring-1 focus:ring-primary"
+                    className={codeClass}
                   />
                 </div>
               </div>
 
               {/* Parse Error */}
-              {parseError && (
-                <div className="text-xs text-red-500 bg-red-500/10 border border-red-500/30 rounded px-2.5 py-1.5">
-                  {parseError}
-                </div>
-              )}
+              {parseError && <div className={errorClass}>{parseError}</div>}
 
               {/* Encoded Token Result */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-foreground">Generated Encoded JWT</label>
-                  <button
-                    onClick={handleCopy}
-                    disabled={!generatedJwt}
-                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded transition-colors"
-                  >
+                  <label className="text-xs font-semibold text-text">Generated Encoded JWT</label>
+                  <button onClick={handleCopy} disabled={!generatedJwt} className={primaryButtonClass}>
                     {copied ? <Check size={14} /> : <Copy size={14} />}
                     {copied ? 'Copied!' : 'Copy JWT'}
                   </button>
@@ -311,24 +284,20 @@ export const JwtFakerModal = ({ isOpen, onClose, showToast }: JwtFakerModalProps
                   readOnly
                   rows={3}
                   value={generatedJwt}
-                  className="w-full font-mono text-xs bg-muted/20 border border-border rounded p-2 text-yellow-500 select-all"
+                  className={`${codeBaseClass} text-accent select-all`}
                 />
               </div>
 
               {/* Save Template Bar */}
-              <div className="flex items-center gap-2 pt-2 border-t border-border">
+              <div className="flex items-center gap-2 pt-3 border-t border-border">
                 <input
                   type="text"
                   placeholder="Template name (e.g. Admin Token)"
                   value={templateName}
                   onChange={(e) => setTemplateName(e.target.value)}
-                  className="flex-1 bg-input border border-border rounded px-2.5 py-1 text-xs"
+                  className={inputClass}
                 />
-                <button
-                  onClick={handleSaveTemplate}
-                  disabled={!templateName.trim()}
-                  className="px-3 py-1 bg-muted hover:bg-muted/80 text-xs font-medium rounded transition-colors disabled:opacity-50"
-                >
+                <button onClick={handleSaveTemplate} disabled={!templateName.trim()} className={`${secondaryButtonClass} whitespace-nowrap`}>
                   Save as Template
                 </button>
               </div>
@@ -338,68 +307,64 @@ export const JwtFakerModal = ({ isOpen, onClose, showToast }: JwtFakerModalProps
           {activeTab === 'decoder' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-muted mb-1">JWT Token to Decode</label>
+                <label className={labelClass}>JWT Token to Decode</label>
                 <textarea
                   rows={3}
                   value={inputTokenToDecode}
                   onChange={(e) => setInputTokenToDecode(e.target.value)}
                   placeholder="Paste JWT token here..."
-                  className="w-full font-mono text-xs bg-input border border-border rounded p-2"
+                  className={`${codeClass} placeholder:text-comment`}
                 />
               </div>
 
               {decoded.isValid ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <span className="block text-xs font-semibold text-red-400 mb-1">Decoded Header</span>
-                    <pre className="font-mono text-xs bg-muted/20 border border-border rounded p-2 overflow-x-auto text-red-400">
+                <div className="flex gap-4">
+                  <div className="flex-1 min-w-0">
+                    <span className="block text-xs font-semibold text-comment mb-1">Decoded Header</span>
+                    <pre className="font-mono text-xs bg-panel border border-border rounded p-2 overflow-x-auto text-text">
                       {JSON.stringify(decoded.header, null, 2)}
                     </pre>
                   </div>
 
-                  <div>
-                    <span className="block text-xs font-semibold text-purple-400 mb-1">Decoded Payload</span>
-                    <pre className="font-mono text-xs bg-muted/20 border border-border rounded p-2 overflow-x-auto text-purple-400">
+                  <div className="flex-1 min-w-0">
+                    <span className="block text-xs font-semibold text-comment mb-1">Decoded Payload</span>
+                    <pre className="font-mono text-xs bg-panel border border-border rounded p-2 overflow-x-auto text-text">
                       {JSON.stringify(decoded.payload, null, 2)}
                     </pre>
                   </div>
                 </div>
               ) : (
-                <div className="text-xs text-red-500 bg-red-500/10 border border-red-500/30 rounded p-2">
-                  {decoded.error || 'Invalid token structure'}
-                </div>
+                <div className={errorClass}>{decoded.error || 'Invalid token structure'}</div>
               )}
             </div>
           )}
 
           {activeTab === 'templates' && (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {templates.length === 0 ? (
-                <div className="text-xs text-muted text-center py-6">
+                <div className="text-xs text-comment text-center py-6">
                   No saved templates yet. Customize claims in the Generator and click "Save as Template".
                 </div>
               ) : (
                 templates.map((tpl) => (
                   <div
                     key={tpl.id}
-                    className="flex items-center justify-between p-2.5 border border-border rounded bg-muted/10 hover:bg-muted/20"
+                    className="flex items-center justify-between p-2.5 border border-border rounded bg-panel hover:bg-active transition-colors"
                   >
                     <div>
-                      <div className="text-xs font-semibold text-foreground">{tpl.name}</div>
-                      <div className="text-[11px] text-muted">
+                      <div className="text-xs font-semibold text-text">{tpl.name}</div>
+                      <div className="text-[11px] text-comment">
                         Alg: {tpl.algorithm} | Key: {tpl.secret || '(none)'}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleLoadTemplate(tpl)}
-                        className="px-2.5 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90"
-                      >
+                      <button onClick={() => handleLoadTemplate(tpl)} className={primaryButtonClass}>
                         Load
                       </button>
                       <button
                         onClick={() => handleDeleteTemplate(tpl.id)}
-                        className="p-1 text-muted hover:text-red-500"
+                        className="p-1 rounded text-comment hover:text-text transition-colors"
+                        title="Delete template"
                       >
                         <X size={14} />
                       </button>
