@@ -5,11 +5,13 @@ import {
   getClaimTimestamp,
 } from '../utils/jwtUtils';
 import type { JwtAlgorithm, JwtTemplate } from '../utils/types';
+import { TEMPLATES_FILE, type TemplateStore } from '../utils/templateStore';
 import { Copy, Check, Sparkles, X } from 'lucide-react';
 
 type ShowToast = (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 
 interface JwtFakerPanelProps {
+  templateStore: TemplateStore;
   showToast?: ShowToast;
 }
 
@@ -62,7 +64,7 @@ const CopyButton = ({ text, label, copied, onCopy, primary }: CopyButtonProps) =
   </button>
 );
 
-export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
+export const JwtFakerPanel = ({ templateStore, showToast }: JwtFakerPanelProps) => {
   const [algorithm, setAlgorithm] = useState<JwtAlgorithm>('HS256');
   const [secret, setSecret] = useState('your-256-bit-secret');
   const [headerJson, setHeaderJson] = useState(DEFAULT_HEADER);
@@ -73,26 +75,42 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
   const [inputTokenToDecode, setInputTokenToDecode] = useState('');
   const [parseError, setParseError] = useState<string | null>(null);
 
-  // Saved templates
-  const [templates, setTemplates] = useState<JwtTemplate[]>(() => {
-    try {
-      const saved = localStorage.getItem('__voiden_jwt_templates__');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Saved templates, stored per project in .voiden/jwt-templates.json
+  const [templates, setTemplates] = useState<JwtTemplate[]>([]);
+  const [templatesStatus, setTemplatesStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState('');
   // The template currently loaded into the generator, so edits can update it.
   const [loadedTemplateId, setLoadedTemplateId] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('__voiden_jwt_templates__', JSON.stringify(templates));
-    } catch {
-      // Ignore storage errors
-    }
-  }, [templates]);
+    let isSubscribed = true;
+    templateStore
+      .load()
+      .then((loaded) => {
+        if (!isSubscribed) return;
+        setTemplates(loaded);
+        setTemplatesStatus('ready');
+      })
+      .catch((err) => {
+        if (!isSubscribed) return;
+        // Leave the file untouched: saving stays disabled until it can be read.
+        setTemplatesError(err instanceof Error ? err.message : String(err));
+        setTemplatesStatus('error');
+      });
+    return () => {
+      isSubscribed = false;
+    };
+  }, [templateStore]);
+
+  const persistTemplates = (next: JwtTemplate[]) => {
+    setTemplates(next);
+    templateStore.save(next).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast?.(`Could not save templates to ${TEMPLATES_FILE}: ${msg}`, 'error');
+    });
+  };
+  const canSaveTemplates = templatesStatus === 'ready';
 
   // Re-generate JWT whenever inputs change
   useEffect(() => {
@@ -167,7 +185,7 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
       loadedTemplate.payload !== payloadJson);
 
   const handleSaveTemplate = () => {
-    if (!templateName.trim()) return;
+    if (!canSaveTemplates || !templateName.trim()) return;
     const newTemplate: JwtTemplate = {
       id: Date.now().toString(),
       name: templateName.trim(),
@@ -176,7 +194,7 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
       header: headerJson,
       payload: payloadJson,
     };
-    setTemplates([...templates, newTemplate]);
+    persistTemplates([...templates, newTemplate]);
     // Keep the new template loaded so further edits update it.
     setLoadedTemplateId(newTemplate.id);
     setTemplateName(newTemplate.name);
@@ -184,7 +202,7 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
   };
 
   const handleUpdateTemplate = () => {
-    if (!loadedTemplate || !templateName.trim()) return;
+    if (!canSaveTemplates || !loadedTemplate || !templateName.trim()) return;
     const updated: JwtTemplate = {
       ...loadedTemplate,
       name: templateName.trim(),
@@ -193,7 +211,7 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
       header: headerJson,
       payload: payloadJson,
     };
-    setTemplates(templates.map((t) => (t.id === updated.id ? updated : t)));
+    persistTemplates(templates.map((t) => (t.id === updated.id ? updated : t)));
     setTemplateName(updated.name);
     showToast?.(`Updated template "${updated.name}"`, 'success');
   };
@@ -215,7 +233,7 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
   };
 
   const handleDeleteTemplate = (id: string) => {
-    setTemplates(templates.filter((t) => t.id !== id));
+    persistTemplates(templates.filter((t) => t.id !== id));
     if (id === loadedTemplateId) handleDetachTemplate();
   };
 
@@ -381,14 +399,14 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
                     <>
                       <button
                         onClick={handleUpdateTemplate}
-                        disabled={!hasTemplateChanges || !templateName.trim()}
+                        disabled={!canSaveTemplates || !hasTemplateChanges || !templateName.trim()}
                         className={`${primaryButtonClass} whitespace-nowrap`}
                       >
                         Update Template
                       </button>
                       <button
                         onClick={handleSaveTemplate}
-                        disabled={!templateName.trim()}
+                        disabled={!canSaveTemplates || !templateName.trim()}
                         className={`${secondaryButtonClass} whitespace-nowrap`}
                       >
                         Save as New
@@ -397,7 +415,7 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
                   ) : (
                     <button
                       onClick={handleSaveTemplate}
-                      disabled={!templateName.trim()}
+                      disabled={!canSaveTemplates || !templateName.trim()}
                       className={`${secondaryButtonClass} whitespace-nowrap`}
                     >
                       Save as Template
@@ -479,7 +497,18 @@ export const JwtFakerPanel = ({ showToast }: JwtFakerPanelProps) => {
 
           {activeTab === 'templates' && (
             <div className="space-y-2">
-              {templates.length === 0 ? (
+              <div className="text-[11px] text-comment">
+                Saved in <span className="font-mono">{TEMPLATES_FILE}</span> for this project. Voiden keeps{' '}
+                <span className="font-mono">.voiden/</span> out of git, so secrets stay on this machine.
+              </div>
+              {templatesStatus === 'loading' ? (
+                <div className="text-xs text-comment text-center py-6">Loading templates…</div>
+              ) : templatesStatus === 'error' ? (
+                <div className={errorClass}>
+                  Could not read {TEMPLATES_FILE}: {templatesError}. Fix or remove the file, then reopen this tab.
+                  Saving templates is disabled so the file isn't overwritten.
+                </div>
+              ) : templates.length === 0 ? (
                 <div className="text-xs text-comment text-center py-6">
                   No saved templates yet. Customize claims in the Generator and click "Save as Template".
                 </div>

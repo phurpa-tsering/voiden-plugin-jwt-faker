@@ -8,6 +8,7 @@
 import type { PluginContext } from '@voiden/sdk/ui';
 import React from 'react';
 import { JwtFakerPanel } from './components/JwtFakerPanel';
+import { createTemplateStore } from './utils/templateStore';
 
 const TAB_ID = 'jwt-faker';
 const TAB_TITLE = 'JWT Faker';
@@ -17,8 +18,11 @@ const jwtFakerPlugin = (context: PluginContext) => {
     | ((message: string, type?: 'info' | 'success' | 'warning' | 'error') => void)
     | undefined;
 
-  // Custom tabs render their component with no props, so bind showToast here.
-  const JwtFakerTab = () => React.createElement(JwtFakerPanel, { showToast });
+  // Templates are saved per project in .voiden/jwt-templates.json.
+  const templateStore = createTemplateStore(context.fs);
+
+  // Custom tabs render their component with no props, so bind them here.
+  const JwtFakerTab = () => React.createElement(JwtFakerPanel, { templateStore, showToast });
 
   // Opens the JWT Faker tab in the main panel, or focuses it if already open.
   const openTab = () => {
